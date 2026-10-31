@@ -90,3 +90,50 @@ export const deletePost = async (req: Request, res: Response) => {
 
   sendSuccess(res, 200, "Post berhasil dihapus");
 };
+
+export const getDailyStats = async (
+  _req: Request,
+  res: Response
+) => {
+  const stats = await prisma.$queryRaw<
+    { date: Date; total: number }[]
+  >`
+    SELECT
+      DATE_TRUNC('day', "createdAt") AS date,
+      COUNT(*)::int AS total
+    FROM "Post"
+    GROUP BY DATE_TRUNC('day', "createdAt")
+    ORDER BY date DESC
+  `;
+
+  sendSuccess(
+    res,
+    200,
+    "Statistik post per hari berhasil diambil",
+    stats
+  );
+};
+
+export const bulkCreatePosts = async (req: Request, res: Response) => {
+  const posts = req.body;
+
+  if (!Array.isArray(posts) || posts.length === 0) {
+    throw new HttpError(400, "Input harus berupa array post");
+  }
+
+  for (const post of posts) {
+    if (!post || !post.title || !post.authorId) {
+      throw new HttpError(400, "Title dan authorId wajib diisi");
+    }
+  }
+
+  const result = await prisma.post.createMany({
+    data: posts.map((post) => ({
+      title: post.title,
+      content: post.content ?? null,
+      authorId: parseId(post.authorId),
+    })),
+  });
+
+  sendSuccess(res, 201, "Bulk create berhasil", result);
+};
